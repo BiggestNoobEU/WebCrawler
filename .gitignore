@@ -1,3 +1,6 @@
+# 3rd party dependencies
+chromedriver
+
 # IDE dir
 /.idea
 /target
