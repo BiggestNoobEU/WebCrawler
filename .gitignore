@@ -1,3 +1,7 @@
+# IDE dir
+/.idea
+/target
+
 # Compiled class file
 *.class
 
