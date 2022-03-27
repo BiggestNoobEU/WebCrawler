@@ -24,12 +24,12 @@ public class Crawler {
 	Wait<WebDriver> wait;
 
 	Crawler() {
+		System.setProperty("webdriver.chrome.driver", "/home/davis/IdeaProjects/WebCrawler/chromedriver");
+
 		Crawler.driver = new ChromeDriver();
-		this.wait = new FluentWait<WebDriver>(Crawler.driver)
+		this.wait = new FluentWait<>(Crawler.driver)
 			.withTimeout(Duration.ofSeconds(Crawler.SECONDS_TO_FIND_ELEMENT))
 			.ignoring(NoSuchElementException.class);
-
-		System.setProperty("webdriver.chrome.driver", "C:\\Users\\Waldo\\Downloads");
 	}
 
 	public void goTo(String url) {
@@ -40,21 +40,37 @@ public class Crawler {
 		Crawler.driver.quit();
 	}
 
+
 	public String saveState(String fileName) {
-		String folderPath = "C:\\Users\\Waldo\\Documents\\Workspace\\JAVA\\Web Crawler\\States\\";
+		String folderPath = "/home/davis/IdeaProjects/WebCrawler/States/";
+
+		return this.savePageSource(folderPath + fileName);
+	}
+
+	public String savePage(String fileName) {
+		String folderPath = "/home/davis/IdeaProjects/WebCrawler/Pages/";
+
+		return this.savePageSource(folderPath + fileName);
+	}
+
+	protected String savePageSource(String savePath) {
 		String content = Crawler.driver.getPageSource();
-		Path path = Paths.get(folderPath + fileName);
-		byte[] byteContent = content.getBytes();
 
 		try {
-			return Files
-				.write(path, byteContent)
-				.toString();
+			return this.writeToFile(savePath, content);
 		} catch (IOException e1) {
 			this.printError(e1.getMessage());
 
 			return "";
 		}
+	}
+
+	protected String writeToFile(String content, String savePath) throws IOException {
+		byte[] byteContent = content.getBytes();
+
+		return Files
+				.write(Paths.get(savePath), byteContent)
+				.toString();
 	}
 
 	public String getPageHtml() {
@@ -91,6 +107,12 @@ public class Crawler {
 	public List<WebElement> findByTagName(String tagName) {
 		return this.wait.until(
 			ExpectedConditions.presenceOfAllElementsLocatedBy(By.tagName(tagName))
+		);
+	}
+
+	public WebElement findFirstByTagName(String tagName) {
+		return this.wait.until(
+				ExpectedConditions.presenceOfElementLocated(By.tagName(tagName))
 		);
 	}
 

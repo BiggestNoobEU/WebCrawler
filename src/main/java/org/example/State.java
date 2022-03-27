@@ -25,7 +25,7 @@ public class State {
 		this.depth = depth;
 	}
 
-	public Integer compare(State targetState) {
-		
-	}
+//	public Integer compare(State targetState) {
+//
+//	}
 }

@@ -7,109 +7,137 @@ import org.openqa.selenium.WebElement;
 
 import java.time.Duration;
 import java.util.*;
+import java.util.stream.Stream;
 
 public class Controller {
-	static final int MAX_DEPTH = 20;
+    static final int MAX_DEPTH = 20;
 
-	//	String url = "https://mvnrepository.com/";
+    //	String url = "https://mvnrepository.com/";
 //	String url = "file:///C:/Users/Waldo/Documents/Workspace/JS/CalculatorJS/Calculator.html";
 //	String url = "https://mcstaging.buff.com/en_eur/";
-	String url = "https://formy-project.herokuapp.com";
-	Crawler crawler;
-	Set<State> stateQueue;
+    String url = "https://formy-project.herokuapp.com";
+    Crawler crawler;
+    List<WebElement> elementQueue;
+    List<WebElement> linkList;
 
-	public Controller() {
-		this.crawler = new Crawler();
-		this.stateQueue = new HashSet<>();
-	}
+    public Controller() {
+        this.crawler = new Crawler();
+        this.elementQueue = new ArrayList<>();
+        this.linkList = new ArrayList<>();
+    }
 
-	public void start() {
-		try {
-			this.crawler.goTo(url);
+    public void start() {
+        try {
+            this.crawler.goTo(url);
 
-			State rootState = new State(
-				this.saveHtmlState("x_x_state.html"),
-				0
-			);
+            WebElement body = this.crawler.findFirstByTagName("body");
+            List<WebElement> linkList = this.getLinkElementList(body);
+            System.out.printf("THE BIG RESULT: %s", linkList.size());
 
-			this.stateQueue.add(rootState);
+            linkList.get(6).click(); // just testing how clicking a link works
+            this.sleep(5000);
+        } finally {
+            this.crawler.close();
+        }
+    }
 
-//			List<WebElement> htmlChildren = this.getDirectChildren(html.get(0));
+    protected String saveHtmlState(String fileName) {
+        return this.crawler.saveState(fileName);
+    }
 
-//			htmlChildren.forEach((child) -> this.process(child));
-		} finally {
-			this.crawler.close();
-		}
-	}
+    /**
+     * Searched for <a> elements in breadth-first manner
+     *
+     * @param rootElement
+     * @return
+     */
+    protected List<WebElement> getLinkElementList(WebElement rootElement) {
+        this.elementQueue.add(rootElement);
 
-	public void process(WebElement element) {
-		do  {
-			State currentState = this.stateQueue.iterator().next();
+        while (!this.elementQueue.isEmpty()) {
+            WebElement parent = this.elementQueue.remove(0);
 
-			this.goToLocalUrl(currentState.getFileName());
+            if (parent.getTagName().compareTo("a") == 0) {
+                this.linkList.add(parent);
+            }
 
-		} while (!this.stateQueue.isEmpty());
-	}
+            List<WebElement> children = this.getDirectChildren(parent);
 
-	protected boolean verifyElement(WebElement element) {
-		try {
-			System.out.println(element.getTagName());
-			return element.getTagName() != "a";
-		} catch (StaleElementReferenceException e) {
-			return false;
-		}
-	}
+            this.elementQueue.addAll(children);
+        }
 
-	protected void retryClick(WebElement element) {
-		int attempts = 0;
-		boolean result = false;
+        return this.linkList;
+    }
 
-		while (attempts < 5) {
-			try {
-				element.click();
+    protected List<WebElement> getDirectChildren(WebElement parent) {
+        return parent.findElements(By.xpath("*"));
+    }
 
-				result = true;
+    protected void sleep(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException f) {
+        }
+    }
 
-				break;
-			} catch (StaleElementReferenceException e) {
-				this.sleep(1000);
-			} finally {
-				attempts++;
-			}
-		}
-
-		if (!result) {
-			throw new ElementNotInteractableException("element is not clickable");
-		}
-	}
-
-	protected void sleep(long ms) {
-		try {
-			Thread.sleep(1000);
-		} catch (InterruptedException f) {
-			return;
-		}
-	}
-
-	protected String saveHtmlState(String fileName) {
-		return this.crawler.saveState(fileName);
-	}
-
-	protected List<WebElement> getDirectChildren(WebElement parentElement) {
-		String tagName = parentElement.getTagName();
-		String cssSelector = String.format("%s > *", tagName);
-
-		return this.crawler.findByCss(cssSelector);
-	}
-
-	protected void printElement(WebElement element) {
-		System.out.printf("el: %s // %s%n", element, element.getTagName());
-	}
-
-	protected void goToLocalUrl(String fileName) {
-		this.crawler.goTo(String.format(
-			"file:///C:/Users/Waldo/Documents/Workspace/JAVA/Web%20Crawler/States/%s",
-			fileName
-		));
-	}
+//	public void process(WebElement element) {
+//		do  {
+//			State currentState = this.stateQueue.iterator().next();
+//
+//			this.goToLocalUrl(currentState.getFileName());
+//
+//		} while (!this.stateQueue.isEmpty());
+//	}
+//
+//	protected boolean verifyElement(WebElement element) {
+//		try {
+//			System.out.println(element.getTagName());
+//			return element.getTagName() != "a";
+//		} catch (StaleElementReferenceException e) {
+//			return false;
+//		}
+//	}
+//
+//	protected void retryClick(WebElement element) {
+//		int attempts = 0;
+//		boolean result = false;
+//
+//		while (attempts < 5) {
+//			try {
+//				element.click();
+//
+//				result = true;
+//
+//				break;
+//			} catch (StaleElementReferenceException e) {
+//				this.sleep(1000);
+//			} finally {
+//				attempts++;
+//			}
+//		}
+//
+//		if (!result) {
+//			throw new ElementNotInteractableException("element is not clickable");
+//		}
+//	}
+//
+//
+//
+//	protected List<WebElement> getDirectChildren(WebElement parentElement) {
+//		String tagName = parentElement.getTagName();
+//		String cssSelector = String.format("%s > *", tagName);
+//
+//		return this.crawler.findByCss(cssSelector);
+//	}
+//
+//	protected void printElement(WebElement element) {
+//		System.out.printf("el: %s // %s%n", element, element.getTagName());
+//	}
+//
+//	protected void goToLocalUrl(String fileName) {
+//		this.crawler.goTo(String.format(
+//			"file:///C:/Users/Waldo/Documents/Workspace/JAVA/Web%20Crawler/States/%s",
+//			fileName
+//		));
+//	}
 }
