@@ -40,6 +40,9 @@ public class Crawler {
 		Crawler.driver.quit();
 	}
 
+	public void windowMaximize() {
+		Crawler.driver.manage().window().maximize();
+	}
 
 	public String saveState(String fileName) {
 		String folderPath = "/home/davis/IdeaProjects/WebCrawler/States/";

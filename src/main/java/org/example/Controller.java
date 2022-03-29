@@ -14,59 +14,47 @@ public class Controller {
 
     //	String url = "https://mvnrepository.com/";
 //	String url = "file:///C:/Users/Waldo/Documents/Workspace/JS/CalculatorJS/Calculator.html";
-//	String url = "https://mcstaging.buff.com/en_eur/";
-    String url = "https://formy-project.herokuapp.com";
+	String url = "https://mcstaging.buff.com/en_eur/";
+//    String url = "https://formy-project.herokuapp.com";
     Crawler crawler;
-    List<WebElement> elementQueue;
-    List<WebElement> linkList;
 
     public Controller() {
         this.crawler = new Crawler();
-        this.elementQueue = new ArrayList<>();
-        this.linkList = new ArrayList<>();
     }
 
     public void start() {
         try {
             this.crawler.goTo(url);
+            this.crawler.windowMaximize();
 
             WebElement body = this.crawler.findFirstByTagName("body");
             List<WebElement> linkList = this.getLinkElementList(body);
-            System.out.printf("THE BIG RESULT: %s", linkList.size());
+            System.out.printf("THE BIG RESULT: %s\n", linkList.size());
 
-            linkList.get(6).click(); // just testing how clicking a link works
-            this.sleep(5000);
         } finally {
             this.crawler.close();
         }
     }
 
-    protected String saveHtmlState(String fileName) {
-        return this.crawler.saveState(fileName);
-    }
-
-    /**
-     * Searched for <a> elements in breadth-first manner
-     *
-     * @param rootElement
-     * @return
-     */
     protected List<WebElement> getLinkElementList(WebElement rootElement) {
-        this.elementQueue.add(rootElement);
+        List<WebElement> elementQueue = new ArrayList<>();
+        List<WebElement> linkList = new ArrayList<>();
 
-        while (!this.elementQueue.isEmpty()) {
-            WebElement parent = this.elementQueue.remove(0);
+        elementQueue.add(rootElement);
 
-            if (parent.getTagName().compareTo("a") == 0) {
-                this.linkList.add(parent);
-            }
-
+        while (!elementQueue.isEmpty()) {
+            WebElement parent = elementQueue.remove(0);
+            String tagName = parent.getTagName();
             List<WebElement> children = this.getDirectChildren(parent);
 
-            this.elementQueue.addAll(children);
+            if (tagName.compareTo("a") == 0) {
+                linkList.add(parent);
+            }
+
+            elementQueue.addAll(children);
         }
 
-        return this.linkList;
+        return linkList;
     }
 
     protected List<WebElement> getDirectChildren(WebElement parent) {
@@ -80,57 +68,7 @@ public class Controller {
         }
     }
 
-//	public void process(WebElement element) {
-//		do  {
-//			State currentState = this.stateQueue.iterator().next();
-//
-//			this.goToLocalUrl(currentState.getFileName());
-//
-//		} while (!this.stateQueue.isEmpty());
-//	}
-//
-//	protected boolean verifyElement(WebElement element) {
-//		try {
-//			System.out.println(element.getTagName());
-//			return element.getTagName() != "a";
-//		} catch (StaleElementReferenceException e) {
-//			return false;
-//		}
-//	}
-//
-//	protected void retryClick(WebElement element) {
-//		int attempts = 0;
-//		boolean result = false;
-//
-//		while (attempts < 5) {
-//			try {
-//				element.click();
-//
-//				result = true;
-//
-//				break;
-//			} catch (StaleElementReferenceException e) {
-//				this.sleep(1000);
-//			} finally {
-//				attempts++;
-//			}
-//		}
-//
-//		if (!result) {
-//			throw new ElementNotInteractableException("element is not clickable");
-//		}
-//	}
-//
-//
-//
-//	protected List<WebElement> getDirectChildren(WebElement parentElement) {
-//		String tagName = parentElement.getTagName();
-//		String cssSelector = String.format("%s > *", tagName);
-//
-//		return this.crawler.findByCss(cssSelector);
-//	}
-//
-//	protected void printElement(WebElement element) {
+    //	protected void printElement(WebElement element) {
 //		System.out.printf("el: %s // %s%n", element, element.getTagName());
 //	}
 //
