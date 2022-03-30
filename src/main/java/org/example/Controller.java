@@ -14,8 +14,8 @@ public class Controller {
 
     //	String url = "https://mvnrepository.com/";
 //	String url = "file:///C:/Users/Waldo/Documents/Workspace/JS/CalculatorJS/Calculator.html";
-	String url = "https://mcstaging.buff.com/en_eur/";
-//    String url = "https://formy-project.herokuapp.com";
+    String url = "https://mcstaging.buff.com/en_eur/";
+    //    String url = "https://formy-project.herokuapp.com";
     Crawler crawler;
 
     public Controller() {
@@ -37,24 +37,62 @@ public class Controller {
     }
 
     protected List<WebElement> getLinkElementList(WebElement rootElement) {
-        List<WebElement> elementQueue = new ArrayList<>();
+        List<Map<String, WebElement>> elementQueue = new ArrayList<>();
         List<WebElement> linkList = new ArrayList<>();
+        Map<String, Integer> tagCountMap = new HashMap<>();
 
-        elementQueue.add(rootElement);
+        elementQueue.add(
+                this.getElementMap(
+                        rootElement,
+                        this.getElementXPath("/html", rootElement, 0)));
 
         while (!elementQueue.isEmpty()) {
-            WebElement parent = elementQueue.remove(0);
-            String tagName = parent.getTagName();
+            Map<String, WebElement> parentElementMap = elementQueue.remove(0);
+            String parentXPath = this.getElementMapXPath(parentElementMap);
+            WebElement parent = parentElementMap.get(parentXPath);
             List<WebElement> children = this.getDirectChildren(parent);
 
-            if (tagName.compareTo("a") == 0) {
+            if (parent.getTagName().compareTo("a") == 0) {
                 linkList.add(parent);
             }
 
-            elementQueue.addAll(children);
+            for (WebElement child : children ) {
+                int prevTagNr = tagCountMap.getOrDefault(child.getTagName(), -1);
+
+                tagCountMap.put(child.getTagName(), ++prevTagNr);
+
+                String elementXPath = this.getElementXPath(parentXPath, child, prevTagNr);
+
+                elementQueue.add(this.getElementMap(child, elementXPath));
+            }
         }
 
         return linkList;
+    }
+
+    protected String getElementMapXPath(Map<String, WebElement> elementMap) {
+        return elementMap
+                .keySet()
+                .iterator()
+                .next();
+    }
+
+    protected Map<String, WebElement> getElementMap(WebElement element, String elementXPath) {
+        Map<String, WebElement> result = new HashMap<>();
+
+        result.put(elementXPath, element);
+
+        return result;
+    }
+
+    protected String getElementXPath(String parentXPath, WebElement targetElement, int nthTag) {
+        String baseString = "%s/%s";
+
+        if (nthTag > 0) {
+            baseString = "%s/%s" + String.format("[%s]", nthTag);
+        }
+
+        return String.format(baseString, parentXPath, targetElement.getTagName());
     }
 
     protected List<WebElement> getDirectChildren(WebElement parent) {
