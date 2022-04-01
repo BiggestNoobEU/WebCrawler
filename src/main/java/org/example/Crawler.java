@@ -115,7 +115,13 @@ public class Crawler {
 
 	public WebElement findFirstByTagName(String tagName) {
 		return this.wait.until(
-				ExpectedConditions.presenceOfElementLocated(By.tagName(tagName))
+			ExpectedConditions.presenceOfElementLocated(By.tagName(tagName))
+		);
+	}
+
+	public WebElement findFirstByXPath(String xPath) {
+		return this.wait.until(
+			ExpectedConditions.presenceOfElementLocated(By.xpath(xPath))
 		);
 	}
 
