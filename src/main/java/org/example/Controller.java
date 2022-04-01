@@ -5,9 +5,14 @@ import org.openqa.selenium.ElementNotInteractableException;
 import org.openqa.selenium.StaleElementReferenceException;
 import org.openqa.selenium.WebElement;
 
+import java.io.FileNotFoundException;
 import java.time.Duration;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintStream;
 
 public class Controller {
     static final int MAX_DEPTH = 20;
@@ -28,7 +33,10 @@ public class Controller {
             this.crawler.windowMaximize();
 
             WebElement body = this.crawler.findFirstByTagName("body");
-            List<WebElement> linkList = this.getLinkElementList(body);
+            List<Map<String, WebElement>> linkList = this.getPageLinkList(body);
+
+            this.printLinksToFile(linkList);
+
             System.out.printf("THE BIG RESULT: %s\n", linkList.size());
 
         } finally {
@@ -36,9 +44,22 @@ public class Controller {
         }
     }
 
-    protected List<WebElement> getLinkElementList(WebElement rootElement) {
+    private void printLinksToFile(List<Map<String, WebElement>> links) {
+        try {
+            File file = new File("/home/davis/IdeaProjects/WebCrawler/VariablePrint/linkListXPath.txt");
+            PrintStream stream = new PrintStream(file);
+            System.setOut(stream);
+        } catch (Exception e) {
+        }
+
+        Consumer<String> xPathConsumer = System.out::println;
+
+        links.forEach(elementMap -> xPathConsumer.accept(this.getElementMapXPath(elementMap)));
+    }
+
+    protected List<Map<String, WebElement>> getPageLinkList(WebElement rootElement) {
         List<Map<String, WebElement>> elementQueue = new ArrayList<>();
-        List<WebElement> linkList = new ArrayList<>();
+        List<Map<String, WebElement>> linkList = new ArrayList<>();
         Map<String, Integer> tagCountMap = new HashMap<>();
 
         elementQueue.add(
@@ -50,14 +71,21 @@ public class Controller {
             Map<String, WebElement> parentElementMap = elementQueue.remove(0);
             String parentXPath = this.getElementMapXPath(parentElementMap);
             WebElement parent = parentElementMap.get(parentXPath);
-            List<WebElement> children = this.getDirectChildren(parent);
+            List<WebElement> children = this.getDirectChildren(parentElementMap);
 
             if (parent.getTagName().compareTo("a") == 0) {
-                linkList.add(parent);
+                linkList.add(parentElementMap);
+
+                // assuming <a> does not have a children-sibling <a> tag
+                continue;
             }
 
-            for (WebElement child : children ) {
-                int prevTagNr = tagCountMap.getOrDefault(child.getTagName(), -1);
+            for (WebElement child : children) {
+                int prevTagNr = -1;
+
+                if (children.size() > 1) {
+                    prevTagNr = tagCountMap.getOrDefault(child.getTagName(), 0);
+                }
 
                 tagCountMap.put(child.getTagName(), ++prevTagNr);
 
@@ -65,6 +93,8 @@ public class Controller {
 
                 elementQueue.add(this.getElementMap(child, elementXPath));
             }
+
+            tagCountMap.clear();
         }
 
         return linkList;
@@ -95,8 +125,17 @@ public class Controller {
         return String.format(baseString, parentXPath, targetElement.getTagName());
     }
 
-    protected List<WebElement> getDirectChildren(WebElement parent) {
-        return parent.findElements(By.xpath("*"));
+    protected List<WebElement> getDirectChildren(Map<String, WebElement> parentElementMap) {
+        WebElement parentElement = parentElementMap.entrySet().iterator().next().getValue();
+
+        try {
+            return parentElement.findElements(By.xpath("*"));
+        } catch (StaleElementReferenceException e) {
+            String parentXPath = parentElementMap.entrySet().iterator().next().getKey();
+            WebElement freshParentElement = this.crawler.findFirstByXPath(parentXPath);
+
+            return this.getDirectChildren(this.getElementMap(freshParentElement, parentXPath));
+        }
     }
 
     protected void sleep(long ms) {
