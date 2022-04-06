@@ -27,28 +27,78 @@ public class Controller {
     public void start() {
         String rootUrl = this.url;
 
-        List<Map<String, WebElement>> linkList = this.processPage(rootUrl);
+//        List<Map<String, WebElement>> linkList = this.processPage(rootUrl);
+        Set<String> linkList = new HashSet<>(this.processPage(rootUrl));
+        Set<String> resultLnkList = new HashSet<>();
 
-        while(!linkList.isEmpty()) {
+        try {
+            File file = new File("/home/davis/IdeaProjects/WebCrawler/VariablePrint/linkListXPath.txt");
+            PrintStream stream = new PrintStream(file);
 
-            this.processPage()
+            System.setOut(stream);
+        } catch (FileNotFoundException e) {
         }
+
+
+        while (linkList.size() != resultLnkList.size()) {
+            String currentLink = linkList.iterator().next();
+
+            if (resultLnkList.contains(currentLink)) {
+                linkList.remove(currentLink);
+
+                continue;
+            }
+
+            Set<String> newLinkList = new HashSet<>(this.processPage(currentLink));
+
+            linkList.addAll(newLinkList);
+            resultLnkList.add(currentLink);
+            linkList.remove(currentLink);
+
+            Set<String> linksCrawled = new HashSet<>(resultLnkList);
+            linksCrawled.retainAll(linkList);
+            linkList.removeAll(linksCrawled);
+        }
+
+        System.out.println(resultLnkList);
+        this.crawler.close();
     }
 
-    public List<Map<String, WebElement>> processPage(String url) {
+    //    public List<Map<String, WebElement>> processPage(String url) {
+    public List<String> processPage(String url) {
         try {
             this.crawler.goTo(url);
             this.crawler.windowMaximize();
 
             WebElement body = this.crawler.findFirstByTagName("body");
             List<Map<String, WebElement>> linkList = this.getPageLinkList(body);
+            List<String> hrefList = new ArrayList<>();
+
+            for (Map<String, WebElement> elementMap : linkList) {
+                String linkXPath = this.getElementMapXPath(elementMap);
+                WebElement linkElement = this.getElementMapElement(elementMap);
+                String href = "";
+
+                try {
+                    href = linkElement.getAttribute("href");
+                } catch (Exception e) {
+                    Map<String, WebElement> reloadedElementMap = this.reloadElement(linkXPath);
+                    href = this.getElementMapElement(reloadedElementMap).getAttribute("href");
+                }
+
+                Boolean isFullHref = href.contains("http://") || href.contains("https://");
+                String resultHref = isFullHref ? href : this.url.concat(href);
+
+                hrefList.add(resultHref);
+            }
 
             this.printLinksToFile(linkList);
-            this.crawler.close();
+//            this.crawler.close();
 
-            return linkList;
+//            return linkList;
+            return hrefList;
         } catch (Exception e) {
-            this.crawler.close();
+//            this.crawler.close();
 
             return new ArrayList<>();
         }
@@ -67,6 +117,18 @@ public class Controller {
 
         links.forEach(elementMap -> xPathConsumer.accept(this.getElementMapXPath(elementMap)));
     }
+
+//    private void printLinksToFileFromSet(String link) {
+//        try {
+//            File file = new File("/home/davis/IdeaProjects/WebCrawler/VariablePrint/linkListHrefs.txt");
+//            PrintStream stream = new PrintStream(file);
+//
+//            System.setOut(stream);
+//        } catch (Exception e) {
+//        }
+//
+//        System.out.println(link);
+//    }
 
     protected List<Map<String, WebElement>> getPageLinkList(WebElement rootElement) {
         List<Map<String, WebElement>> elementQueue = new ArrayList<>();
@@ -181,15 +243,4 @@ public class Controller {
         } catch (InterruptedException f) {
         }
     }
-
-    //	protected void printElement(WebElement element) {
-//		System.out.printf("el: %s // %s%n", element, element.getTagName());
-//	}
-//
-//	protected void goToLocalUrl(String fileName) {
-//		this.crawler.goTo(String.format(
-//			"file:///C:/Users/Waldo/Documents/Workspace/JAVA/Web%20Crawler/States/%s",
-//			fileName
-//		));
-//	}
 }
