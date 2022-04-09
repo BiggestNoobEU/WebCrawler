@@ -3,6 +3,10 @@ package org.example;
 import org.openqa.selenium.*;
 
 import java.io.FileNotFoundException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.*;
 import java.util.function.Consumer;
@@ -14,57 +18,53 @@ import java.io.PrintStream;
 public class Controller {
     static final int MAX_DEPTH = 20;
 
-    //	String url = "https://mvnrepository.com/";
-//	String url = "file:///C:/Users/Waldo/Documents/Workspace/JS/CalculatorJS/Calculator.html";
 //    String url = "https://mcstaging.buff.com/en_eur/";
     String url = "https://formy-project.herokuapp.com";
+//    String url = "https://mcprod.buff.com/";
     Crawler crawler;
 
     public Controller() {
         this.crawler = new Crawler();
     }
 
-    public void start() {
+    public void startBreadthFirstSearch() {
         String rootUrl = this.url;
 
-//        List<Map<String, WebElement>> linkList = this.processPage(rootUrl);
         Set<String> linkList = new HashSet<>(this.processPage(rootUrl));
         Set<String> resultLnkList = new HashSet<>();
 
-        try {
-            File file = new File("/home/davis/IdeaProjects/WebCrawler/VariablePrint/linkListXPath.txt");
-            PrintStream stream = new PrintStream(file);
-
-            System.setOut(stream);
-        } catch (FileNotFoundException e) {
-        }
-
-
-        while (linkList.size() != resultLnkList.size()) {
+        while (!linkList.isEmpty()) {
             String currentLink = linkList.iterator().next();
+            boolean isCurrentDomain = currentLink.contains(rootUrl);
+
+            if (!isCurrentDomain) {
+                // if not current domain, then do not crawl
+                resultLnkList.add(currentLink);
+
+            }
 
             if (resultLnkList.contains(currentLink)) {
+                // if already crawled, skip current link
                 linkList.remove(currentLink);
 
                 continue;
             }
 
-            Set<String> newLinkList = new HashSet<>(this.processPage(currentLink));
+            Set<String> newlyFoundLinkList = new HashSet<>(this.processPage(currentLink));
 
-            linkList.addAll(newLinkList);
+            linkList.addAll(newlyFoundLinkList);
             resultLnkList.add(currentLink);
-            linkList.remove(currentLink);
 
-            Set<String> linksCrawled = new HashSet<>(resultLnkList);
-            linksCrawled.retainAll(linkList);
-            linkList.removeAll(linksCrawled);
+            Set<String> linksAlreadyCrawled = new HashSet<>(resultLnkList);
+
+            linksAlreadyCrawled.retainAll(linkList);
+            linkList.removeAll(linksAlreadyCrawled);
+            this.writeToFile(currentLink, "links.txt");
         }
 
-        System.out.println(resultLnkList);
         this.crawler.close();
     }
 
-    //    public List<Map<String, WebElement>> processPage(String url) {
     public List<String> processPage(String url) {
         try {
             this.crawler.goTo(url);
@@ -77,7 +77,7 @@ public class Controller {
             for (Map<String, WebElement> elementMap : linkList) {
                 String linkXPath = this.getElementMapXPath(elementMap);
                 WebElement linkElement = this.getElementMapElement(elementMap);
-                String href = "";
+                String href;
 
                 try {
                     href = linkElement.getAttribute("href");
@@ -86,49 +86,35 @@ public class Controller {
                     href = this.getElementMapElement(reloadedElementMap).getAttribute("href");
                 }
 
-                Boolean isFullHref = href.contains("http://") || href.contains("https://");
+                boolean isFullHref = href.contains("http://") || href.contains("https://");
                 String resultHref = isFullHref ? href : this.url.concat(href);
 
                 hrefList.add(resultHref);
             }
 
-            this.printLinksToFile(linkList);
-//            this.crawler.close();
-
-//            return linkList;
             return hrefList;
         } catch (Exception e) {
-//            this.crawler.close();
-
             return new ArrayList<>();
         }
     }
 
-    private void printLinksToFile(List<Map<String, WebElement>> links) {
-        try {
-            File file = new File("/home/davis/IdeaProjects/WebCrawler/VariablePrint/linkListXPath.txt");
-            PrintStream stream = new PrintStream(file);
+    private void writeToFile(String text, String filename) {
+        Path filePath = Paths.get(String.format("/home/davis/IdeaProjects/WebCrawler/VariablePrint/%s", filename));
+        String textWithNewLine = String.format("%s\n", text);
 
-            System.setOut(stream);
+        try {
+            if (!Files.exists(filePath)) {
+                Files.createFile(filePath);
+            }
+
+            Files.write(
+                    filePath,
+                    textWithNewLine.getBytes(),
+                    StandardOpenOption.APPEND
+            );
         } catch (Exception e) {
         }
-
-        Consumer<String> xPathConsumer = System.out::println;
-
-        links.forEach(elementMap -> xPathConsumer.accept(this.getElementMapXPath(elementMap)));
     }
-
-//    private void printLinksToFileFromSet(String link) {
-//        try {
-//            File file = new File("/home/davis/IdeaProjects/WebCrawler/VariablePrint/linkListHrefs.txt");
-//            PrintStream stream = new PrintStream(file);
-//
-//            System.setOut(stream);
-//        } catch (Exception e) {
-//        }
-//
-//        System.out.println(link);
-//    }
 
     protected List<Map<String, WebElement>> getPageLinkList(WebElement rootElement) {
         List<Map<String, WebElement>> elementQueue = new ArrayList<>();
