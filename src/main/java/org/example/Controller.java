@@ -120,6 +120,10 @@ public class Controller {
             }
         }
 
+        if (href == null) {
+            return "";
+        }
+
         boolean isFullHref = href.contains("http://") || href.contains("https://");
 
         return isFullHref ? href : this.url.concat(href);
@@ -215,28 +219,6 @@ public class Controller {
 
         return new DomElement(reloadedElement, xPath, parentElement.getPageUrl());
     }
-
-//    protected String getElementMapXPath(Map<String, WebElement> elementMap) {
-//        return elementMap
-//                .keySet()
-//                .iterator()
-//                .next();
-//    }
-//
-//    protected WebElement getElementMapElement(Map<String, WebElement> elementMap) {
-//        return elementMap
-//                .values()
-//                .iterator()
-//                .next();
-//    }
-
-//    protected Map<String, WebElement> buildElementMap(WebElement element, String elementXPath) {
-//        Map<String, WebElement> result = new HashMap<>();
-//
-//        result.put(elementXPath, element);
-//
-//        return result;
-//    }
 
     protected String buildElementXPath(String parentXPath, WebElement targetElement, int nthTag) {
         String baseString = "%s/%s";
