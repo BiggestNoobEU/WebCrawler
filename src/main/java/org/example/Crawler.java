@@ -130,4 +130,8 @@ public class Crawler {
 			ExpectedConditions.presenceOfAllElementsLocatedBy(By.xpath(xPath))
 		);
 	}
+
+	public WebDriver getDriver() {
+		return Crawler.driver;
+	}
 }
