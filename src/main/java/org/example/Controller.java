@@ -73,12 +73,11 @@ public class Controller {
             this.crawler.goTo(url);
             this.crawler.windowMaximize();
 
-            WebElement body = this.crawler.findFirstByTagName("body");
-            List<Map<String, WebElement>> clickableElementList = this.getPageClickableElementList(body);
+            List<DomElement> clickableElementList = this.getPageClickableElementList(url);
             Set<String> urlSet = new HashSet<>();
 
-            for (Map<String, WebElement> elementMap : clickableElementList) {
-                urlSet.add(this.getHrefUrl(elementMap));
+            for (DomElement domElement : clickableElementList) {
+                urlSet.add(this.getHrefUrl(domElement));
             }
 
             return urlSet;
@@ -87,14 +86,38 @@ public class Controller {
         }
     }
 
-    protected String getHrefUrl(Map<String, WebElement> elementMap) {
+//    protected boolean isNewPageState(DomElement rootElement, String currentUrl) {
+//        boolean isTheSamePage = this.crawler
+//                .getDriver()
+//                .getCurrentUrl()
+//                .compareTo(currentUrl) == 0;
+//
+//        if (isTheSamePage) {
+//
+//        }
+//
+//        try {
+//            this.getElementMapElement(elementMap)
+//                    .click();
+//        } catch (StaleElementReferenceException e) {
+//            this.isNewPageState(this.reloadElement(this.getElementMapXPath(elementMap)), currentUrl);
+//        }
+//
+//        return false;
+//    }
+
+    protected String getHrefUrl(DomElement domElement) {
         String href;
 
         try {
-            href = this.getElementMapElement(elementMap).getAttribute("href");
+            href = domElement.getElement().getAttribute("href");
         } catch (StaleElementReferenceException e) {
-            Map<String, WebElement> reloadedElementMap = this.reloadElement(this.getElementMapXPath(elementMap));
-            href = this.getElementMapElement(reloadedElementMap).getAttribute("href");
+            try {
+                DomElement reloadedElement = this.reloadElement(domElement);
+                href = reloadedElement.getElement().getAttribute("href");
+            } catch (TimeoutException e1) {
+                href = "";
+            }
         }
 
         boolean isFullHref = href.contains("http://") || href.contains("https://");
@@ -120,23 +143,24 @@ public class Controller {
         }
     }
 
-    protected List<Map<String, WebElement>> getPageClickableElementList(WebElement rootElement) {
-        List<Map<String, WebElement>> elementQueue = new ArrayList<>();
-        List<Map<String, WebElement>> linkList = new ArrayList<>();
+    protected List<DomElement> getPageClickableElementList(String url) {
+        WebElement body = this.crawler.findFirstByTagName("body");
+        DomElement rootElement = new DomElement(
+                body,
+                this.buildElementXPath("/html", body, 0),
+                url);
+        List<DomElement> elementQueue = new ArrayList<>();
+        List<DomElement> linkList = new ArrayList<>();
         Map<String, Integer> tagCountMap = new HashMap<>();
 
-        elementQueue.add(
-                this.buildElementMap(
-                        rootElement,
-                        this.buildElementXPath("/html", rootElement, 0)));
+        elementQueue.add(rootElement);
 
         while (!elementQueue.isEmpty()) {
-            Map<String, WebElement> parentElementMap = elementQueue.remove(0);
-            String parentXPath = this.getElementMapXPath(parentElementMap);
-            List<WebElement> children = this.getDirectChildren(parentElementMap);
+            DomElement parentElement = elementQueue.remove(0);
+            List<WebElement> children = this.getDirectChildren(parentElement);
 
-            if (this.isClickable(parentElementMap)) {
-                linkList.add(parentElementMap);
+            if (this.isClickable(parentElement)) {
+                linkList.add(parentElement);
 
                 /* assuming <a>, <button> and element that has cursor: pointer css does not
                   have a children that should be clickable as well */
@@ -150,10 +174,10 @@ public class Controller {
                     prevSameTagNr = tagCountMap.getOrDefault(child.getTagName(), 0);
                 }
 
-                String elementXPath = this.buildElementXPath(parentXPath, child, prevSameTagNr);
+                String childXPath = this.buildElementXPath(parentElement.getXPath(), child, prevSameTagNr);
 
                 tagCountMap.put(child.getTagName(), ++prevSameTagNr);
-                elementQueue.add(this.buildElementMap(child, elementXPath));
+                elementQueue.add(new DomElement(child, childXPath, rootElement.getPageUrl()));
             }
 
             tagCountMap.clear();
@@ -162,57 +186,57 @@ public class Controller {
         return linkList;
     }
 
-    protected boolean isClickable(Map<String, WebElement> elementMap) {
-        return this.isElementOfType(elementMap, "a")
-                || this.isElementOfType(elementMap, "button")
-                || this.getElementMapElement(elementMap)
+    protected boolean isClickable(DomElement domElement) {
+        return this.isElementOfType(domElement, "a")
+                || this.isElementOfType(domElement, "button")
+                || domElement
+                    .getElement()
                     .getCssValue("cursor")
                     .compareTo("pointer") == 0;
     }
 
-    protected boolean isElementOfType(Map<String, WebElement> elementMap, String type) {
+    protected boolean isElementOfType(DomElement domElement, String type) {
         try {
-            return this.getElementMapElement(elementMap)
+            return domElement.getElement()
                     .getTagName()
                     .compareTo(type) == 0;
         } catch (StaleElementReferenceException e) {
-            String elementXPath = this.getElementMapXPath(elementMap);
-
             try {
-                return this.isElementOfType(this.reloadElement(elementXPath), type);
+                return this.isElementOfType(this.reloadElement(domElement), type);
             } catch (TimeoutException e1) {
                 return false;
             }
         }
     }
 
-    protected Map<String, WebElement> reloadElement(String xPath) throws TimeoutException {
+    protected DomElement reloadElement(DomElement parentElement) throws TimeoutException {
+        String xPath = parentElement.getXPath();
         WebElement reloadedElement = this.crawler.findFirstByXPath(xPath);
 
-        return this.buildElementMap(reloadedElement, xPath);
+        return new DomElement(reloadedElement, xPath, parentElement.getPageUrl());
     }
 
-    protected String getElementMapXPath(Map<String, WebElement> elementMap) {
-        return elementMap
-                .keySet()
-                .iterator()
-                .next();
-    }
+//    protected String getElementMapXPath(Map<String, WebElement> elementMap) {
+//        return elementMap
+//                .keySet()
+//                .iterator()
+//                .next();
+//    }
+//
+//    protected WebElement getElementMapElement(Map<String, WebElement> elementMap) {
+//        return elementMap
+//                .values()
+//                .iterator()
+//                .next();
+//    }
 
-    protected WebElement getElementMapElement(Map<String, WebElement> elementMap) {
-        return elementMap
-                .values()
-                .iterator()
-                .next();
-    }
-
-    protected Map<String, WebElement> buildElementMap(WebElement element, String elementXPath) {
-        Map<String, WebElement> result = new HashMap<>();
-
-        result.put(elementXPath, element);
-
-        return result;
-    }
+//    protected Map<String, WebElement> buildElementMap(WebElement element, String elementXPath) {
+//        Map<String, WebElement> result = new HashMap<>();
+//
+//        result.put(elementXPath, element);
+//
+//        return result;
+//    }
 
     protected String buildElementXPath(String parentXPath, WebElement targetElement, int nthTag) {
         String baseString = "%s/%s";
@@ -224,15 +248,17 @@ public class Controller {
         return String.format(baseString, parentXPath, targetElement.getTagName());
     }
 
-    protected List<WebElement> getDirectChildren(Map<String, WebElement> parentElementMap) {
-        WebElement parentElement = parentElementMap.entrySet().iterator().next().getValue();
-
+    protected List<WebElement> getDirectChildren(DomElement parentElement) {
         try {
-            return parentElement.findElements(By.xpath("*"));
+            return parentElement
+                    .getElement()
+                    .findElements(By.xpath("*"));
         } catch (StaleElementReferenceException e) {
-            String parentXPath = this.getElementMapXPath(parentElementMap);
-
-            return this.getDirectChildren(this.reloadElement(parentXPath));
+            try {
+                return this.getDirectChildren(this.reloadElement(parentElement));
+            } catch (TimeoutException e1) {
+                return new ArrayList<>();
+            }
         }
     }
 
