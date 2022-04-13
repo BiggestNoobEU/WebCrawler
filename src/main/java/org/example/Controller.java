@@ -2,6 +2,7 @@ package org.example;
 
 import org.openqa.selenium.*;
 
+import javax.xml.xpath.XPath;
 import java.io.FileNotFoundException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,6 +23,7 @@ public class Controller {
     String url = "https://formy-project.herokuapp.com";
 //    String url = "https://mcprod.buff.com/";
     Crawler crawler;
+    int transitionsToNewState = 0;
 
     public Controller() {
         this.crawler = new Crawler();
@@ -65,6 +67,8 @@ public class Controller {
             this.writeToFile(currentLink, "links.txt");
         }
 
+        this.transitionsToNewState = resultLnkList.size();
+
         this.crawler.close();
     }
 
@@ -77,7 +81,25 @@ public class Controller {
             Set<String> urlSet = new HashSet<>();
 
             for (DomElement domElement : clickableElementList) {
-                urlSet.add(this.getHrefUrl(domElement));
+                String href = this.getHrefUrl(domElement);
+
+                if(href.length() > 0) {
+                    // it is <a> and 100% invokes redirect on click
+                    urlSet.add(href);
+
+                    continue;
+                }
+
+                String urlAfterClick = this.getUrlAfterClick(domElement);
+
+                if (urlAfterClick.compareTo(domElement.getPageUrl()) != 0) {
+                    // url has changed, so redirect has happened
+                    urlSet.add(urlAfterClick);
+
+                    continue;
+                }
+
+
             }
 
             return urlSet;
@@ -86,25 +108,43 @@ public class Controller {
         }
     }
 
-//    protected boolean isNewPageState(DomElement rootElement, String currentUrl) {
-//        boolean isTheSamePage = this.crawler
-//                .getDriver()
-//                .getCurrentUrl()
-//                .compareTo(currentUrl) == 0;
-//
-//        if (isTheSamePage) {
-//
-//        }
-//
-//        try {
-//            this.getElementMapElement(elementMap)
-//                    .click();
-//        } catch (StaleElementReferenceException e) {
-//            this.isNewPageState(this.reloadElement(this.getElementMapXPath(elementMap)), currentUrl);
-//        }
-//
-//        return false;
-//    }
+    protected String getUrlAfterClick(DomElement domElement) {
+        String elementPageUrl = domElement.getPageUrl();
+
+        try {
+            domElement
+                    .getElement()
+                    .click();
+        } catch (StaleElementReferenceException e) {
+            try {
+                this.reloadElement(domElement)
+                        .getElement()
+                        .click();
+            } catch (TimeoutException e1) {
+                return elementPageUrl;
+            }
+        } catch (ElementNotInteractableException e2) {
+            return elementPageUrl;
+        }
+
+        String currentUrl = this.crawler
+                .getDriver()
+                .getCurrentUrl();
+
+        if (currentUrl.compareTo(elementPageUrl) == 0) {
+            // the element does not invoke redirect to other page
+            // it might have revealed a new link by opening a popup or something else
+
+            this.crawler.savePage(String.format("%s.html", elementPageUrl.replaceAll("\\/", "_")));
+
+            return elementPageUrl;
+        }
+
+        // go back to the page where redirect element is located
+        this.crawler.goTo(elementPageUrl);
+
+        return currentUrl;
+    }
 
     protected String getHrefUrl(DomElement domElement) {
         String href;
@@ -191,6 +231,15 @@ public class Controller {
     }
 
     protected boolean isClickable(DomElement domElement) {
+        boolean isVisible = domElement
+                .getElement()
+                .getCssValue("display")
+                .compareTo("none") != 0;
+
+        if (!isVisible) {
+            return false;
+        }
+
         return this.isElementOfType(domElement, "a")
                 || this.isElementOfType(domElement, "button")
                 || domElement
