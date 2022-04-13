@@ -39,9 +39,8 @@ public class Controller {
 
         while (!linkList.isEmpty()) {
             String currentLink = linkList.iterator().next();
-            boolean isCurrentDomain = currentLink.contains(rootUrl);
 
-            if (!isCurrentDomain) {
+            if (!currentLink.contains(rootUrl)) {
                 // if not current domain, then do not crawl
                 resultLnkList.add(currentLink);
 
@@ -136,7 +135,7 @@ public class Controller {
             String parentXPath = this.getElementMapXPath(parentElementMap);
             List<WebElement> children = this.getDirectChildren(parentElementMap);
 
-            if (this.isLink(parentElementMap)) {
+            if (this.isClickable(parentElementMap)) {
                 linkList.add(parentElementMap);
 
                 // assuming <a> does not have a children-sibling <a> tag
@@ -162,16 +161,24 @@ public class Controller {
         return linkList;
     }
 
-    protected boolean isLink(Map<String, WebElement> elementMap) {
+    protected boolean isClickable(Map<String, WebElement> elementMap) {
+        return this.isElementOfType(elementMap, "a")
+                || this.isElementOfType(elementMap, "button")
+                || this.getElementMapElement(elementMap)
+                    .getCssValue("cursor")
+                    .compareTo("pointer") == 0;
+    }
+
+    protected boolean isElementOfType(Map<String, WebElement> elementMap, String type) {
         try {
             return this.getElementMapElement(elementMap)
                     .getTagName()
-                    .compareTo("a") == 0;
-        } catch (Exception e) {
+                    .compareTo(type) == 0;
+        } catch (StaleElementReferenceException e) {
             String elementXPath = this.getElementMapXPath(elementMap);
 
             try {
-                return this.isLink(this.reloadElement(elementXPath));
+                return this.isElementOfType(this.reloadElement(elementXPath), type);
             } catch (TimeoutException e1) {
                 return false;
             }
