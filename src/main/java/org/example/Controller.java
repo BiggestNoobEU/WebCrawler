@@ -27,6 +27,10 @@ public class Controller {
         this.crawler = new Crawler();
     }
 
+    public void start() {
+
+    }
+
     public void startBreadthFirstSearch() {
         String rootUrl = this.url;
 
@@ -72,30 +76,31 @@ public class Controller {
 
             WebElement body = this.crawler.findFirstByTagName("body");
             List<Map<String, WebElement>> linkList = this.getPageLinkList(body);
-            List<String> hrefList = new ArrayList<>();
+            List<String> urlList = new ArrayList<>();
 
             for (Map<String, WebElement> elementMap : linkList) {
-                String linkXPath = this.getElementMapXPath(elementMap);
-                WebElement linkElement = this.getElementMapElement(elementMap);
-                String href;
-
-                try {
-                    href = linkElement.getAttribute("href");
-                } catch (Exception e) {
-                    Map<String, WebElement> reloadedElementMap = this.reloadElement(linkXPath);
-                    href = this.getElementMapElement(reloadedElementMap).getAttribute("href");
-                }
-
-                boolean isFullHref = href.contains("http://") || href.contains("https://");
-                String resultHref = isFullHref ? href : this.url.concat(href);
-
-                hrefList.add(resultHref);
+                urlList.add(this.getHrefUrl(elementMap));
             }
 
-            return hrefList;
+            return urlList;
         } catch (Exception e) {
             return new ArrayList<>();
         }
+    }
+
+    protected String getHrefUrl(Map<String, WebElement> elementMap) {
+        String href;
+
+        try {
+            href = this.getElementMapElement(elementMap).getAttribute("href");
+        } catch (StaleElementReferenceException e) {
+            Map<String, WebElement> reloadedElementMap = this.reloadElement(this.getElementMapXPath(elementMap));
+            href = this.getElementMapElement(reloadedElementMap).getAttribute("href");
+        }
+
+        boolean isFullHref = href.contains("http://") || href.contains("https://");
+
+        return isFullHref ? href : this.url.concat(href);
     }
 
     private void writeToFile(String text, String filename) {
