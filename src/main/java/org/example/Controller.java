@@ -53,9 +53,9 @@ public class Controller {
                 continue;
             }
 
-            Set<String> newlyFoundLinkList = new HashSet<>(this.processPage(currentLink));
+            Set<String> newlyFoundLinkSet = this.processPage(currentLink);
 
-            linkList.addAll(newlyFoundLinkList);
+            linkList.addAll(newlyFoundLinkSet);
             resultLnkList.add(currentLink);
 
             Set<String> linksAlreadyCrawled = new HashSet<>(resultLnkList);
@@ -68,22 +68,22 @@ public class Controller {
         this.crawler.close();
     }
 
-    public List<String> processPage(String url) {
+    public Set<String> processPage(String url) {
         try {
             this.crawler.goTo(url);
             this.crawler.windowMaximize();
 
             WebElement body = this.crawler.findFirstByTagName("body");
-            List<Map<String, WebElement>> linkList = this.getPageLinkList(body);
-            List<String> urlList = new ArrayList<>();
+            List<Map<String, WebElement>> clickableElementList = this.getPageClickableElementList(body);
+            Set<String> urlSet = new HashSet<>();
 
-            for (Map<String, WebElement> elementMap : linkList) {
-                urlList.add(this.getHrefUrl(elementMap));
+            for (Map<String, WebElement> elementMap : clickableElementList) {
+                urlSet.add(this.getHrefUrl(elementMap));
             }
 
-            return urlList;
+            return urlSet;
         } catch (Exception e) {
-            return new ArrayList<>();
+            return new HashSet<>();
         }
     }
 
@@ -120,7 +120,7 @@ public class Controller {
         }
     }
 
-    protected List<Map<String, WebElement>> getPageLinkList(WebElement rootElement) {
+    protected List<Map<String, WebElement>> getPageClickableElementList(WebElement rootElement) {
         List<Map<String, WebElement>> elementQueue = new ArrayList<>();
         List<Map<String, WebElement>> linkList = new ArrayList<>();
         Map<String, Integer> tagCountMap = new HashMap<>();
@@ -138,7 +138,8 @@ public class Controller {
             if (this.isClickable(parentElementMap)) {
                 linkList.add(parentElementMap);
 
-                // assuming <a> does not have a children-sibling <a> tag
+                /* assuming <a>, <button> and element that has cursor: pointer css does not
+                  have a children that should be clickable as well */
                 continue;
             }
 
