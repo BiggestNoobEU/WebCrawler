@@ -19,9 +19,9 @@ import java.io.PrintStream;
 public class Controller {
     static final int MAX_DEPTH = 20;
 
-//    String url = "https://mcstaging.buff.com/en_eur/";
+    //    String url = "https://mcstaging.buff.com/en_eur/";
     String url = "https://formy-project.herokuapp.com";
-//    String url = "https://mcprod.buff.com/";
+    //    String url = "https://mcprod.buff.com/";
     Crawler crawler;
     int transitionsToNewState = 0;
 
@@ -36,75 +36,139 @@ public class Controller {
     public void startBreadthFirstSearch() {
         String rootUrl = this.url;
 
-        Set<String> linkList = new HashSet<>(this.processPage(rootUrl));
-        Set<String> resultLnkList = new HashSet<>();
+        this.crawler.goTo(rootUrl);
+        this.crawler.windowMaximize();
 
-        while (!linkList.isEmpty()) {
-            String currentLink = linkList.iterator().next();
+        List<DomElement> allClickableElements = this.getPageClickableElementList(rootUrl);
+        List<DomElement> links = new ArrayList<>();
+        List<DomElement> buttons = new ArrayList<>();
 
-            if (!currentLink.contains(rootUrl)) {
-                // if not current domain, then do not crawl
-                resultLnkList.add(currentLink);
-
-            }
-
-            if (resultLnkList.contains(currentLink)) {
-                // if already crawled, skip current link
-                linkList.remove(currentLink);
+        for (DomElement domElement : allClickableElements) {
+            if (this.isLink(domElement)) {
+                links.add(domElement);
 
                 continue;
             }
 
-            Set<String> newlyFoundLinkSet = this.processPage(currentLink);
-
-            linkList.addAll(newlyFoundLinkSet);
-            resultLnkList.add(currentLink);
-
-            Set<String> linksAlreadyCrawled = new HashSet<>(resultLnkList);
-
-            linksAlreadyCrawled.retainAll(linkList);
-            linkList.removeAll(linksAlreadyCrawled);
-            this.writeToFile(currentLink, "links.txt");
+            buttons.add(domElement);
         }
 
-        this.transitionsToNewState = resultLnkList.size();
+        this.executeClickOnElements(allClickableElements);
+//        while (!linkList.isEmpty()) {
+//            String currentLink = linkList.iterator().next();
+//
+//            if (!currentLink.contains(rootUrl)) {
+//                // if not current domain, then do not crawl
+//                resultLnkList.add(currentLink);
+//
+//            }
+//
+//            if (resultLnkList.contains(currentLink)) {
+//                // if already crawled, skip current link
+//                linkList.remove(currentLink);
+//
+//                continue;
+//            }
+//
+////            Set<String> newlyFoundLinkSet = this.processPage(currentLink);
+//            List<DomElement> clickableElementList = this.getPageClickableElementList(url);
+//
+//            linkList.addAll(newlyFoundLinkSet);
+//            resultLnkList.add(currentLink);
+//
+//            Set<String> linksAlreadyCrawled = new HashSet<>(resultLnkList);
+//
+//            linksAlreadyCrawled.retainAll(linkList);
+//            linkList.removeAll(linksAlreadyCrawled);
+//            this.writeToFile(currentLink, "links.txt");
+//        }
 
+        System.out.println(this.transitionsToNewState);
         this.crawler.close();
     }
 
-    public Set<String> processPage(String url) {
+    protected void executeClickOnElements(List<DomElement> elements) {
+        elements.forEach(element -> this.clickElement(element));
+    }
+
+    protected void clickElement(DomElement element) {
+        String urlBeforeClick = element.getPageUrl();
+        boolean isClickExecuted = this.executeClick(element);
+
+        if (!isClickExecuted) {
+            this.crawler.goTo(urlBeforeClick);
+
+            return;
+        }
+
+        if (this.isUrlChanged(element)) {
+            this.updateStateCount(1);
+            this.crawler.goTo(urlBeforeClick);
+        }
+    }
+
+    protected boolean isUrlChanged(DomElement element) {
+        return this.crawler
+                .getDriver()
+                .getCurrentUrl()
+                .compareTo(String.format("%s/", element.getPageUrl())) != 0;
+    }
+
+    protected boolean executeClick(DomElement domElement) {
+        try {
+            domElement
+                    .getElement()
+                    .click();
+
+            return true;
+        } catch (StaleElementReferenceException e) {
+            return this.executeClick(this.reloadElement(domElement));
+        } catch (Exception e1) {
+            return false;
+        }
+    }
+
+    protected void updateStateCount(int count) {
+        int currentCount = this.transitionsToNewState;
+
+        this.transitionsToNewState = count + currentCount;
+    }
+
+    protected boolean isLink(DomElement domElement) {
+        return this.getHrefUrl(domElement).length() > 0;
+    }
+
+    public List<DomElement> processPage(String url) {
         try {
             this.crawler.goTo(url);
             this.crawler.windowMaximize();
 
             List<DomElement> clickableElementList = this.getPageClickableElementList(url);
-            Set<String> urlSet = new HashSet<>();
+//            List<DomElement>  = new ArrayList<>();
 
-            for (DomElement domElement : clickableElementList) {
-                String href = this.getHrefUrl(domElement);
+//            for (DomElement domElement : clickableElementList) {
+//                String href = this.getHrefUrl(domElement);
+//
+//                if(href.length() > 0) {
+//                    // it is <a> and 100% invokes redirect on click
+//                    urlSet.add(href);
+//
+//                    continue;
+//                }
+//
+//                String urlAfterClick = this.getUrlAfterClick(domElement);
+//
+//                if (urlAfterClick.compareTo(domElement.getPageUrl()) != 0) {
+//                    // url has changed, so redirect has happened
+//                    urlSet.add(urlAfterClick);
+//
+//                    continue;
+//                }
+//            }
 
-                if(href.length() > 0) {
-                    // it is <a> and 100% invokes redirect on click
-                    urlSet.add(href);
-
-                    continue;
-                }
-
-                String urlAfterClick = this.getUrlAfterClick(domElement);
-
-                if (urlAfterClick.compareTo(domElement.getPageUrl()) != 0) {
-                    // url has changed, so redirect has happened
-                    urlSet.add(urlAfterClick);
-
-                    continue;
-                }
-
-
-            }
-
-            return urlSet;
+            return clickableElementList;
         } catch (Exception e) {
-            return new HashSet<>();
+            return new ArrayList<>();
         }
     }
 
@@ -189,37 +253,35 @@ public class Controller {
 
     protected List<DomElement> getPageClickableElementList(String url) {
         WebElement body = this.crawler.findFirstByTagName("body");
-        DomElement rootElement = new DomElement(
-                body,
-                this.buildElementXPath("/html", body, 0),
-                url);
+        DomElement rootElement = new DomElement(body, this.buildElementXPath("/html", body, 0), url);
         List<DomElement> elementQueue = new ArrayList<>();
-        List<DomElement> linkList = new ArrayList<>();
+        List<DomElement> clickableElements = new ArrayList<>();
         Map<String, Integer> tagCountMap = new HashMap<>();
-
         elementQueue.add(rootElement);
 
         while (!elementQueue.isEmpty()) {
             DomElement parentElement = elementQueue.remove(0);
-            List<WebElement> children = this.getDirectChildren(parentElement);
+            boolean isClickable = this.isClickable(parentElement);
 
             if (this.isClickable(parentElement)) {
-                linkList.add(parentElement);
-
+                clickableElements.add(parentElement);
                 /* assuming <a>, <button> and element that has cursor: pointer css does not
                   have a children that should be clickable as well */
                 continue;
             }
 
-            for (WebElement child : children) {
+            if (!isClickable && parentElement.getElement().getTagName().compareTo("button") == 0) {
+                continue;
+            }
+
+            for (WebElement child : this.getDirectChildren(parentElement)) {
                 int prevSameTagNr = -1;
 
-                if (children.size() > 1) {
-                    prevSameTagNr = tagCountMap.getOrDefault(child.getTagName(), 0);
+                if (this.getSameTagSiblings(parentElement, child.getTagName()).size() > 1) {
+                    prevSameTagNr = tagCountMap.getOrDefault(child.getTagName(), 1);
                 }
 
                 String childXPath = this.buildElementXPath(parentElement.getXPath(), child, prevSameTagNr);
-
                 tagCountMap.put(child.getTagName(), ++prevSameTagNr);
                 elementQueue.add(new DomElement(child, childXPath, rootElement.getPageUrl()));
             }
@@ -227,7 +289,14 @@ public class Controller {
             tagCountMap.clear();
         }
 
-        return linkList;
+        return clickableElements;
+    }
+
+    protected List<WebElement> getSameTagSiblings(DomElement parent, String tag) {
+        return parent
+                .getElement()
+                .findElements(
+                        By.xpath(String.format("%s/%s", parent.getXPath(), tag)));
     }
 
     protected boolean isClickable(DomElement domElement) {
@@ -243,9 +312,9 @@ public class Controller {
         return this.isElementOfType(domElement, "a")
                 || this.isElementOfType(domElement, "button")
                 || domElement
-                    .getElement()
-                    .getCssValue("cursor")
-                    .compareTo("pointer") == 0;
+                .getElement()
+                .getCssValue("cursor")
+                .compareTo("pointer") == 0;
     }
 
     protected boolean isElementOfType(DomElement domElement, String type) {
