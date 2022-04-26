@@ -88,23 +88,46 @@ public class Controller {
     }
 
     protected void executeClickOnElements(List<DomElement> elements) {
-        elements.forEach(element -> this.clickElement(element));
+        elements.forEach(this::clickElement);
     }
 
     protected void clickElement(DomElement element) {
         String urlBeforeClick = element.getPageUrl();
+        String stateFileName = element
+                .getXPath()
+                .replaceAll("([/.:-])", "");
+        String beforeFileName = String.format("BC%s.html", stateFileName);
+        String afterFileName = String.format("AC%s.html", stateFileName);
+
+        this.crawler.savePage(beforeFileName);
+
         boolean isClickExecuted = this.executeClick(element);
 
         if (!isClickExecuted) {
+            this.crawler.deleteStateFile(beforeFileName);
             this.crawler.goTo(urlBeforeClick);
 
             return;
         }
 
         if (this.isUrlChanged(element)) {
+            this.crawler.deleteStateFile(beforeFileName);
             this.updateStateCount(1);
             this.crawler.goTo(urlBeforeClick);
+
+            return;
         }
+
+        this.crawler.savePage(afterFileName);
+
+        if(this.isDomChanged()) {
+            this.updateStateCount(1);
+        }
+    }
+
+    protected boolean isDomChanged() {
+
+        return false;
     }
 
     protected boolean isUrlChanged(DomElement element) {
@@ -172,43 +195,43 @@ public class Controller {
         }
     }
 
-    protected String getUrlAfterClick(DomElement domElement) {
-        String elementPageUrl = domElement.getPageUrl();
-
-        try {
-            domElement
-                    .getElement()
-                    .click();
-        } catch (StaleElementReferenceException e) {
-            try {
-                this.reloadElement(domElement)
-                        .getElement()
-                        .click();
-            } catch (TimeoutException e1) {
-                return elementPageUrl;
-            }
-        } catch (ElementNotInteractableException e2) {
-            return elementPageUrl;
-        }
-
-        String currentUrl = this.crawler
-                .getDriver()
-                .getCurrentUrl();
-
-        if (currentUrl.compareTo(elementPageUrl) == 0) {
-            // the element does not invoke redirect to other page
-            // it might have revealed a new link by opening a popup or something else
-
-            this.crawler.savePage(String.format("%s.html", elementPageUrl.replaceAll("\\/", "_")));
-
-            return elementPageUrl;
-        }
-
-        // go back to the page where redirect element is located
-        this.crawler.goTo(elementPageUrl);
-
-        return currentUrl;
-    }
+//    protected String getUrlAfterClick(DomElement domElement) {
+//        String elementPageUrl = domElement.getPageUrl();
+//
+//        try {
+//            domElement
+//                    .getElement()
+//                    .click();
+//        } catch (StaleElementReferenceException e) {
+//            try {
+//                this.reloadElement(domElement)
+//                        .getElement()
+//                        .click();
+//            } catch (TimeoutException e1) {
+//                return elementPageUrl;
+//            }
+//        } catch (ElementNotInteractableException e2) {
+//            return elementPageUrl;
+//        }
+//
+//        String currentUrl = this.crawler
+//                .getDriver()
+//                .getCurrentUrl();
+//
+//        if (currentUrl.compareTo(elementPageUrl) == 0) {
+//            // the element does not invoke redirect to other page
+//            // it might have revealed a new link by opening a popup or something else
+//
+//            this.crawler.savePage(String.format("%s.html", elementPageUrl.replaceAll("\\/", "_")));
+//
+//            return elementPageUrl;
+//        }
+//
+//        // go back to the page where redirect element is located
+//        this.crawler.goTo(elementPageUrl);
+//
+//        return currentUrl;
+//    }
 
     protected String getHrefUrl(DomElement domElement) {
         String href;

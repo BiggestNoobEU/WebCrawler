@@ -8,8 +8,10 @@ import org.openqa.selenium.support.ui.FluentWait;
 import org.openqa.selenium.support.ui.Wait;
 import org.openqa.selenium.support.ui.WebDriverWait;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -20,6 +22,7 @@ public class Crawler {
 	static final int SECONDS_TO_FIND_ELEMENT = 5;
 
 	static WebDriver driver;
+	Path statesDirectoryPath;
 
 	Wait<WebDriver> wait;
 
@@ -30,6 +33,7 @@ public class Crawler {
 		this.wait = new FluentWait<>(Crawler.driver)
 			.withTimeout(Duration.ofSeconds(Crawler.SECONDS_TO_FIND_ELEMENT))
 			.ignoring(NoSuchElementException.class);
+		this.statesDirectoryPath = Paths.get("/home/davis/IdeaProjects/WebCrawler/Pages/");
 	}
 
 	public void goTo(String url) {
@@ -45,22 +49,35 @@ public class Crawler {
 	}
 
 	public String saveState(String fileName) {
-		String folderPath = "/home/davis/IdeaProjects/WebCrawler/States/";
+		Path folderPath = Paths.get("/home/davis/IdeaProjects/WebCrawler/States/");
 
-		return this.savePageSource(folderPath + fileName);
+		return this.savePageSource(Paths.get(folderPath + fileName));
 	}
 
 	public String savePage(String fileName) {
-		String folderPath = "/home/davis/IdeaProjects/WebCrawler/Pages/";
+		Path folderPath = Paths.get("/home/davis/IdeaProjects/WebCrawler/Pages/");
+		Path filePath = Path.of(String.format("%s/%s", folderPath, fileName));
 
-		return this.savePageSource(folderPath + fileName);
+		if(Files.exists(folderPath)) {
+			return this.savePageSource(filePath);
+		}
+
+		try {
+			Files.createDirectory(folderPath);
+		} catch (IOException e) {
+			this.printError(e.getMessage());
+
+			return "";
+		}
+
+		return this.savePage(fileName);
 	}
 
-	protected String savePageSource(String savePath) {
+	protected String savePageSource(Path savePath) {
 		String content = Crawler.driver.getPageSource();
 
 		try {
-			return this.writeToFile(savePath, content);
+			return this.writeToFile(content, savePath);
 		} catch (IOException e1) {
 			this.printError(e1.getMessage());
 
@@ -68,13 +85,30 @@ public class Crawler {
 		}
 	}
 
-	protected String writeToFile(String content, String savePath) throws IOException {
+	protected String writeToFile(String content, Path savePath) throws IOException {
 		byte[] byteContent = content.getBytes();
 
-		return Files
-				.write(Paths.get(savePath), byteContent)
-				.toString();
+		try {
+			return Files
+					.write(savePath, byteContent)
+					.toString();
+		} catch (NoSuchFileException e1) {
+			Files.createFile(savePath);
+
+			return this.writeToFile(content, savePath);
+		}
 	}
+
+	public void deleteStateFile(String fileName) {
+		Path filePath = Path.of(String.format("%s/%s", this.statesDirectoryPath, fileName));
+
+		try {
+			Files.delete(filePath);
+		} catch (IOException e) {
+			this.printError(e.getMessage());
+		}
+	}
+
 
 	public String getPageHtml() {
 		return Crawler.driver.getPageSource();
