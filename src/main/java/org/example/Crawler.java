@@ -10,11 +10,9 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.*;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -88,22 +86,53 @@ public class Crawler {
 	protected String writeToFile(String content, Path savePath) throws IOException {
 		byte[] byteContent = content.getBytes();
 
-		try {
-			return Files
-					.write(savePath, byteContent)
-					.toString();
-		} catch (NoSuchFileException e1) {
-			Files.createFile(savePath);
+		if (Files.exists(savePath)) {
+			String newFilePath = this.createNewFile(savePath);
 
-			return this.writeToFile(content, savePath);
+			return this.writeToFile(content, Path.of(newFilePath));
 		}
+
+		return Files
+				.write(savePath, byteContent)
+				.toString();
 	}
 
-	public void deleteStateFile(String fileName) {
-		Path filePath = Path.of(String.format("%s/%s", this.statesDirectoryPath, fileName));
+	private String getFileDirectory(Path path) {
+		return path.toString().replace("/" + path.getFileName(), "");
+	}
 
+	private String getFileName(Path path) {
+		String[] pathArray = path.toString().split("/");
+
+		return pathArray[pathArray.length - 1].split("([.])")[0];
+	}
+
+	private String getFileExtension(Path path) {
+		String[] pathArray = path.toString().split("/");
+
+		return pathArray[pathArray.length - 1].split("([.])")[1];
+	}
+
+	private String createNewFile(Path savePath) {
+		int num = 0;
+		File file = new File(savePath.toString());
+
+		while(file.exists()) {
+			String newFilePath = String.format(
+					"%s/%s(%s).%s",
+					this.getFileDirectory(savePath),
+					this.getFileName(savePath),
+					(num++),
+					this.getFileExtension(savePath));
+			file = new File(newFilePath);
+		}
+
+		return file.getAbsolutePath();
+	}
+
+	public void deleteStateFile(Path deletePath) {
 		try {
-			Files.delete(filePath);
+			Files.delete(deletePath);
 		} catch (IOException e) {
 			this.printError(e.getMessage());
 		}

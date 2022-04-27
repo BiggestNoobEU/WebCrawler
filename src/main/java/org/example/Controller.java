@@ -1,5 +1,6 @@
 package org.example;
 
+import com.aspose.words.Document;
 import org.openqa.selenium.*;
 
 import javax.xml.xpath.XPath;
@@ -11,6 +12,8 @@ import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.io.File;
 import java.io.IOException;
@@ -34,57 +37,69 @@ public class Controller {
     }
 
     public void startBreadthFirstSearch() {
-        String rootUrl = this.url;
+        try {
+            String rootUrl = this.url;
 
-        this.crawler.goTo(rootUrl);
-        this.crawler.windowMaximize();
+            this.crawler.goTo(rootUrl);
+            this.crawler.windowMaximize();
 
-        List<DomElement> allClickableElements = this.getPageClickableElementList(rootUrl);
-        List<DomElement> links = new ArrayList<>();
-        List<DomElement> buttons = new ArrayList<>();
+            List<DomElement> allClickableElements = this.getPageClickableElementList(rootUrl);
+            Set<String> urls = this.getUrls(this.getLinks(allClickableElements));
+            Set<String> urlsCrawled = new HashSet<>();
 
-        for (DomElement domElement : allClickableElements) {
-            if (this.isLink(domElement)) {
-                links.add(domElement);
+            this.executeClickOnElements(allClickableElements);
+            urlsCrawled.add(rootUrl);
 
-                continue;
-            }
+            while (!urls.isEmpty()) {
+                String nextUrl = urls.iterator().next();
 
-            buttons.add(domElement);
-        }
+                this.crawler.goTo(nextUrl);
 
-        this.executeClickOnElements(allClickableElements);
-//        while (!linkList.isEmpty()) {
-//            String currentLink = linkList.iterator().next();
-//
+                allClickableElements = this.getPageClickableElementList(rootUrl);
+                Set<String> newlyFoundUrls = this.getUrls(this.getLinks(allClickableElements));
+
+                this.executeClickOnElements(allClickableElements);
+
+                urlsCrawled.add(nextUrl);
+                urls.addAll(newlyFoundUrls);
+                urls.removeAll(urlsCrawled);
+
+
 //            if (!currentLink.contains(rootUrl)) {
 //                // if not current domain, then do not crawl
 //                resultLnkList.add(currentLink);
 //
 //            }
-//
+
 //            if (resultLnkList.contains(currentLink)) {
 //                // if already crawled, skip current link
 //                linkList.remove(currentLink);
 //
 //                continue;
 //            }
-//
-////            Set<String> newlyFoundLinkSet = this.processPage(currentLink);
-//            List<DomElement> clickableElementList = this.getPageClickableElementList(url);
-//
+
 //            linkList.addAll(newlyFoundLinkSet);
 //            resultLnkList.add(currentLink);
-//
+
 //            Set<String> linksAlreadyCrawled = new HashSet<>(resultLnkList);
 //
 //            linksAlreadyCrawled.retainAll(linkList);
 //            linkList.removeAll(linksAlreadyCrawled);
 //            this.writeToFile(currentLink, "links.txt");
-//        }
+            }
 
-        System.out.println(this.transitionsToNewState);
-        this.crawler.close();
+            System.out.println(this.transitionsToNewState);
+        } finally {
+            this.crawler.close();
+        }
+    }
+
+    protected List<DomElement> getLinks(List<DomElement> list) {
+        return list.stream().filter(this::isLink).collect(Collectors.toList());
+    }
+
+    protected Set<String> getUrls(List<DomElement> links) {
+        return links.stream().map(this::getHrefUrl).filter(urlString -> urlString.length() > 0).collect(Collectors.toSet());
     }
 
     protected void executeClickOnElements(List<DomElement> elements) {
@@ -93,41 +108,45 @@ public class Controller {
 
     protected void clickElement(DomElement element) {
         String urlBeforeClick = element.getPageUrl();
-        String stateFileName = element
-                .getXPath()
-                .replaceAll("([/.:-])", "");
-        String beforeFileName = String.format("BC%s.html", stateFileName);
-        String afterFileName = String.format("AC%s.html", stateFileName);
+        String beforeFileName = String.format("BC_%s.html", element.getElement().getTagName());
+        String afterFileName = String.format("AC_%s.html", element.getElement().getTagName());
 
-        this.crawler.savePage(beforeFileName);
+        Path beforeClickStatePath = Path.of(this.crawler.savePage(beforeFileName));
 
         boolean isClickExecuted = this.executeClick(element);
 
         if (!isClickExecuted) {
-            this.crawler.deleteStateFile(beforeFileName);
+            this.crawler.deleteStateFile(beforeClickStatePath);
             this.crawler.goTo(urlBeforeClick);
 
             return;
         }
 
         if (this.isUrlChanged(element)) {
-            this.crawler.deleteStateFile(beforeFileName);
+            this.crawler.deleteStateFile(beforeClickStatePath);
             this.updateStateCount(1);
             this.crawler.goTo(urlBeforeClick);
 
             return;
         }
 
-        this.crawler.savePage(afterFileName);
+        Path afterClickStatePath = Path.of(this.crawler.savePage(afterFileName));
 
-        if(this.isDomChanged()) {
+        if (this.isDomChanged(beforeClickStatePath, afterClickStatePath)) {
             this.updateStateCount(1);
         }
     }
 
-    protected boolean isDomChanged() {
+    protected boolean isDomChanged(Path beforeClickStatePath, Path afterClickStatePath) {
+        try {
+            Document beforeClick = new Document(beforeClickStatePath.toString());
+            Document afterClick = new Document(afterClickStatePath.toString());
+            beforeClick.compare(afterClick, "user", new Date());
 
-        return false;
+            return beforeClick.getRevisions().getCount() != 0;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     protected boolean isUrlChanged(DomElement element) {
@@ -161,78 +180,6 @@ public class Controller {
         return this.getHrefUrl(domElement).length() > 0;
     }
 
-    public List<DomElement> processPage(String url) {
-        try {
-            this.crawler.goTo(url);
-            this.crawler.windowMaximize();
-
-            List<DomElement> clickableElementList = this.getPageClickableElementList(url);
-//            List<DomElement>  = new ArrayList<>();
-
-//            for (DomElement domElement : clickableElementList) {
-//                String href = this.getHrefUrl(domElement);
-//
-//                if(href.length() > 0) {
-//                    // it is <a> and 100% invokes redirect on click
-//                    urlSet.add(href);
-//
-//                    continue;
-//                }
-//
-//                String urlAfterClick = this.getUrlAfterClick(domElement);
-//
-//                if (urlAfterClick.compareTo(domElement.getPageUrl()) != 0) {
-//                    // url has changed, so redirect has happened
-//                    urlSet.add(urlAfterClick);
-//
-//                    continue;
-//                }
-//            }
-
-            return clickableElementList;
-        } catch (Exception e) {
-            return new ArrayList<>();
-        }
-    }
-
-//    protected String getUrlAfterClick(DomElement domElement) {
-//        String elementPageUrl = domElement.getPageUrl();
-//
-//        try {
-//            domElement
-//                    .getElement()
-//                    .click();
-//        } catch (StaleElementReferenceException e) {
-//            try {
-//                this.reloadElement(domElement)
-//                        .getElement()
-//                        .click();
-//            } catch (TimeoutException e1) {
-//                return elementPageUrl;
-//            }
-//        } catch (ElementNotInteractableException e2) {
-//            return elementPageUrl;
-//        }
-//
-//        String currentUrl = this.crawler
-//                .getDriver()
-//                .getCurrentUrl();
-//
-//        if (currentUrl.compareTo(elementPageUrl) == 0) {
-//            // the element does not invoke redirect to other page
-//            // it might have revealed a new link by opening a popup or something else
-//
-//            this.crawler.savePage(String.format("%s.html", elementPageUrl.replaceAll("\\/", "_")));
-//
-//            return elementPageUrl;
-//        }
-//
-//        // go back to the page where redirect element is located
-//        this.crawler.goTo(elementPageUrl);
-//
-//        return currentUrl;
-//    }
-
     protected String getHrefUrl(DomElement domElement) {
         String href;
 
@@ -247,7 +194,7 @@ public class Controller {
             }
         }
 
-        if (href == null) {
+        if (href == null || href.contains("#")) {
             return "";
         }
 
@@ -276,7 +223,8 @@ public class Controller {
 
     protected List<DomElement> getPageClickableElementList(String url) {
         WebElement body = this.crawler.findFirstByTagName("body");
-        DomElement rootElement = new DomElement(body, this.buildElementXPath("/html", body, 0), url);
+        DomElement rootElement = new DomElement(
+                body, this.buildElementXPath("/html", body, 0), url, this.crawler);
         List<DomElement> elementQueue = new ArrayList<>();
         List<DomElement> clickableElements = new ArrayList<>();
         Map<String, Integer> tagCountMap = new HashMap<>();
@@ -306,7 +254,7 @@ public class Controller {
 
                 String childXPath = this.buildElementXPath(parentElement.getXPath(), child, prevSameTagNr);
                 tagCountMap.put(child.getTagName(), ++prevSameTagNr);
-                elementQueue.add(new DomElement(child, childXPath, rootElement.getPageUrl()));
+                elementQueue.add(new DomElement(child, childXPath, rootElement.getPageUrl(), this.crawler));
             }
 
             tagCountMap.clear();
@@ -358,7 +306,7 @@ public class Controller {
         String xPath = parentElement.getXPath();
         WebElement reloadedElement = this.crawler.findFirstByXPath(xPath);
 
-        return new DomElement(reloadedElement, xPath, parentElement.getPageUrl());
+        return new DomElement(reloadedElement, xPath, parentElement.getPageUrl(), this.crawler);
     }
 
     protected String buildElementXPath(String parentXPath, WebElement targetElement, int nthTag) {
