@@ -63,29 +63,6 @@ public class Controller {
                 urlsCrawled.add(nextUrl);
                 urls.addAll(newlyFoundUrls);
                 urls.removeAll(urlsCrawled);
-
-
-//            if (!currentLink.contains(rootUrl)) {
-//                // if not current domain, then do not crawl
-//                resultLnkList.add(currentLink);
-//
-//            }
-
-//            if (resultLnkList.contains(currentLink)) {
-//                // if already crawled, skip current link
-//                linkList.remove(currentLink);
-//
-//                continue;
-//            }
-
-//            linkList.addAll(newlyFoundLinkSet);
-//            resultLnkList.add(currentLink);
-
-//            Set<String> linksAlreadyCrawled = new HashSet<>(resultLnkList);
-//
-//            linksAlreadyCrawled.retainAll(linkList);
-//            linkList.removeAll(linksAlreadyCrawled);
-//            this.writeToFile(currentLink, "links.txt");
             }
 
             System.out.println(this.transitionsToNewState);
